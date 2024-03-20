@@ -275,7 +275,6 @@ class GameGUI:
                 if piece:
                     self.buttons[row][col].image = self.icons.get(icon_key, '')
 
-
 def main():
     root = tk.Tk()
     game_gui = GameGUI(root)
