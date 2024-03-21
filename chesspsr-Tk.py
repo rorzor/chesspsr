@@ -1,8 +1,6 @@
 import tkinter as tk
-from tkinter import simpledialog
 from tkinter import Toplevel, Button
 from tkinter import messagebox
-from tkinter import PhotoImage
 from PIL import Image, ImageTk
 
 class Piece:
@@ -15,6 +13,31 @@ class Player:
     def __init__(self, home_square):
         self.home_square = home_square
         self.pieces = []  # This will hold Piece objects
+
+class ChoosePieceTypeDialog(Toplevel):
+    def __init__(self, parent, title="Choose Piece Type"):
+        super().__init__(parent)
+        self.geometry("200x150")
+        self.title(title)
+        self.result = None
+        
+        options = ["Rock", "Paper", "Scissors"]
+        for option in options:
+            btn = Button(self, text=option, command=lambda o=option: self.set_choice_and_destroy(o))
+            btn.pack(pady=10)
+        
+        self.transient(parent)
+        self.grab_set()
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
+        parent.wait_window(self)
+
+    def set_choice_and_destroy(self, choice):
+        self.result = choice
+        self.destroy()
+
+    def on_close(self):
+        self.result = None
+        self.destroy()
 
 class PieceTypeDialog(Toplevel):
     def __init__(self, parent, title, message, options):
@@ -61,6 +84,9 @@ class GameGUI:
         # Add a status label to display whose turn it is
         self.status_label = tk.Label(self.master, text="Player 1's turn", font=('Helvetica', 16))
         self.status_label.grid(row=8, column=0, columnspan=8)  # Adjust grid parameters as needed
+
+        self.move_count = 0  # Track the number of moves made in the current turn
+        self.home_squares = {1: (7, 0), 2: (0, 7)}  # Assuming Player 1's home is at (7, 0) and Player 2's at (0, 7)
 
         self.create_board()
         self.initialize_game()
@@ -110,29 +136,46 @@ class GameGUI:
             self.master.grid_columnconfigure(i, weight=1)
 
     def on_square_clicked(self, row, col):
-        if self.selected_piece:
+        print(f"Clicked: {row}, {col}, Selected: {self.selected_piece}, Move Count: {self.move_count}")  # Debug print
+        
+        # Check if there's a piece on the clicked square and print details
+        piece = self.board[row][col]
+        if piece:
+            print(f"Piece present: Yes, Type: {piece.piece_type}, Owner: Player {piece.player}")
+        else:
+            print("Piece present: No")
+        
+        # Home square logic
+        if (row, col) == self.home_squares[self.current_turn + 1] and not self.board[row][col] and self.move_count == 0:
+            self.spawn_piece(self.current_turn + 1, row, col)
+            self.switch_turn()  # Switch turn after spawning
+        elif self.selected_piece:
             # Attempt to move selected piece to the clicked square
             if self.is_valid_move(self.selected_piece, (row, col)):
                 self.move_piece(self.selected_piece, (row, col))
-                self.switch_turn()  # Switch turns after a valid move
+                self.move_count += 1
+                print(f"Move made to: {row}, {col}. Move Count: {self.move_count}")
+                if self.move_count == 3:  # After making three moves, switch turns
+                    self.switch_turn()
+                self.selected_piece = None  # Reset selected_piece after a successful move
             else:
                 print("Invalid move. Try again.")
-            self.selected_piece = None  # Reset selection regardless of move validity
+                self.selected_piece = None  # Consider resetting selected_piece if the move is invalid
         else:
-            # Select a piece to move
-            if self.is_valid_selection(row, col):
+            # Select a piece to move if within move limit
+            if self.move_count < 3 and self.is_valid_selection(row, col):
                 self.selected_piece = (row, col)
-                print(f"Piece at {row}, {col} selected. Now select where to move it.")
+                print(f"Piece at {row}, {col} selected. Move Count: {self.move_count}")
             else:
-                print("Invalid selection. Select one of your pieces.")
-
-        self.update_board()
+                print("Move limit reached or invalid selection.")
 
     def switch_turn(self):
-        # Switch the current turn to the other player
         self.current_turn = 1 - self.current_turn
-        self.announce_turn()  # Announce the next player's turn
-
+        self.move_count = 0  # Reset move count for the new turn
+        self.selected_piece = None  # Ensure selected_piece is reset when switching turns
+        self.announce_turn()
+        self.update_board()  # Update board to reflect any changes
+    
     def initialize_game(self):
         # Define the starting positions for Player 1 and Player 2
         player1_positions = [("A2", (6, 0)), ("B2", (6, 1)), ("B1", (7, 1))]
@@ -153,30 +196,71 @@ class GameGUI:
             choice = dialog.result  # Access the result directly after the dialog has been handled
             
             if choice:  # If a choice was made
-                piece = Piece(choice, player_id, is_revealed=False)
+                piece = Piece(choice, player_id, is_revealed=False)  # Assuming pieces are initially revealed
                 self.board[row][col] = piece
-                btn_text = choice[0].capitalize()  # Showing the initial letter
-                self.buttons[row][col].config(text=btn_text)
+                # Use icons instead of text for pieces
+                icon_key = f"{choice.lower()}_player{player_id}"
+                self.buttons[row][col].config(image=self.icons[icon_key], bg="white")
+                # Store a reference to prevent garbage collection
+                self.buttons[row][col].image = self.icons[icon_key]
                 piece_types.remove(choice)
 
     def move_piece(self, from_pos, to_pos):
-        # Extract row and column from positions
         from_row, from_col = from_pos
         to_row, to_col = to_pos
 
-        # Example logic to check if the move is valid and perform it
-        piece = self.board[from_row][from_col]
-        if piece and self.is_valid_move(from_pos, to_pos):
-            self.board[to_row][to_col] = self.board[from_row][from_col]
-            self.board[from_row][from_col] = None
-            print(f"Moved {piece} from {from_pos} to {to_pos}")
-            self.current_turn = 1 - self.current_turn  # Switch turns
+        from_piece = self.board[from_row][from_col]
+        to_piece = self.board[to_row][to_col]
+
+        if from_piece and self.is_valid_move(from_pos, to_pos):
+            # Check if we're attempting to move onto an opponent's piece (initiating a battle)
+            if to_piece and to_piece.player != from_piece.player:
+                # Set both pieces to be revealed
+                from_piece.is_revealed = True
+                if to_piece:  # Check to ensure there's a defending piece
+                    to_piece.is_revealed = True
+                
+                # Resolve the battle based on your game's rules
+                outcome = self.resolve_battle(from_piece, to_piece)
+                if outcome == "win":
+                    # Attacker wins, replace the defender's piece with the attacker's
+                    self.board[to_row][to_col] = from_piece
+                    self.board[from_row][from_col] = None
+                    print(f"Player {from_piece.player}'s {from_piece.piece_type} wins the battle.")
+                elif outcome == "draw":
+                    # If the battle is a draw, no pieces are moved or removed
+                    self.update_board()
+                    print("The battle ends in a draw. No pieces are moved.")
+                    return  # Early return to skip the win condition check and board update
+                else:  # outcome == "lose"
+                    # Attacker loses, remove the attacker's piece from the board
+                    self.board[from_row][from_col] = None
+                    print(f"Player {from_piece.player}'s {from_piece.piece_type} loses the battle.")
+            else:
+                # Move the piece to the new position if not initiating a battle
+                self.board[to_row][to_col] = from_piece
+                self.board[from_row][from_col] = None
+                print(f"Moved {from_piece.piece_type} from {from_pos} to {to_pos}")
+
+            # Check for win condition after the move or battle
+            if self.check_win_condition():
+                tk.messagebox.showinfo("Game Over", f"Player {self.current_turn + 1} wins!")
+
+            # Update the board to reflect the new state
+            self.update_board()
         else:
             print("Invalid move.")
 
-        if self.check_win_condition():
-            tk.messagebox.showinfo("Game Over", f"Player {self.current_turn + 1} wins!")
-        self.update_board()
+    def resolve_battle(self, attacker, defender):
+        # Define wins-against relationships
+        wins_against = {"Rock": "Scissors", "Scissors": "Paper", "Paper": "Rock"}
+
+        if wins_against[attacker.piece_type] == defender.piece_type:
+            return "win"
+        elif attacker.piece_type == defender.piece_type:
+            return "draw"
+        else:
+            return "lose"
 
     def is_valid_move(self, from_pos, to_pos):
         from_row, from_col = from_pos
@@ -209,9 +293,38 @@ class GameGUI:
             print(f"This move is not allowed for Player {self.current_turn + 1}.")
             return False
         
+        # Check if the target square is occupied by the player's own piece
+        if to_piece and to_piece.player == from_piece.player:
+            print("Cannot move onto your own piece.")
+            return False
+
+            # Check if the target square is occupied by the opponent's piece for a possible battle
+        if to_piece and to_piece.player != from_piece.player:
+        # Check for invalid battle condition: both pieces are revealed and of the same type
+            if from_piece.is_revealed and to_piece.is_revealed and from_piece.piece_type == to_piece.piece_type:
+                print("Cannot attack: both pieces are revealed and of the same type.")
+                return False
+            else:
+                return True  # Valid move for initiating a battle
+
         # Check other move validity conditions specific to your game's rules...
 
         return True  # Assuming other conditions are met
+
+    def spawn_piece(self, player, row, col):
+        piece_type = self.choose_piece_type()
+        if piece_type:
+            new_piece = Piece(piece_type, player, is_revealed=False)
+            self.board[row][col] = new_piece
+            # Update the board visualization as necessary
+            self.update_board()
+            print(f"Spawned {piece_type} for Player {player}")
+        else:
+            print("Piece spawning cancelled.")
+
+    def choose_piece_type(self):
+        dialog = ChoosePieceTypeDialog(self.master, "Choose Piece Type")
+        return dialog.result
 
     def can_capture(self, attacker, defender):
         """Determine if the attacking piece can capture the defending piece."""
@@ -240,16 +353,19 @@ class GameGUI:
         return True
 
     def check_win_condition(self):
-        # Directly check the opponent's home square for the presence of a piece
-        if self.board[7][0] is not None and self.board[7][0] in self.players[1].pieces:
+        # Check Player 1's victory condition: Player 1 piece is at Player 2's home square
+        if self.board[0][7] is not None and self.board[0][7].player == 1:
             print("Player 1 wins!")
             return True
-        if self.board[0][7] is not None and self.board[0][7] in self.players[0].pieces:
+        # Check Player 2's victory condition: Player 2 piece is at Player 1's home square
+        if self.board[7][0] is not None and self.board[7][0].player == 2:
             print("Player 2 wins!")
             return True
         return False
 
+
     def update_board(self):
+        print(f"current turn: {self.current_turn + 1}")
         for row in range(8):
             for col in range(8):
                 piece = self.board[row][col]
