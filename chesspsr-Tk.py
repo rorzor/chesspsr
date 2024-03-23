@@ -127,7 +127,7 @@ class GameGUI:
         for row in range(8):
             for col in range(8):
                 btn = tk.Button(self.master, text=' ', width=8, height=4, command=lambda r=row, c=col: self.on_square_clicked(r, c),
-                                highlightthickness=2, highlightbackground='white')  # Highlight border set to 2px, default color white
+                                borderwidth=3, activebackground='blue')  # Highlight border set to 2px, default color white
                 btn.grid(row=row, column=col, sticky='nsew')
                 self.buttons[row][col] = btn
 
@@ -137,17 +137,8 @@ class GameGUI:
             self.master.grid_columnconfigure(i, weight=1)
 
     def on_square_clicked(self, row, col):
-        if self.selected_piece:
-            # If there's a previously selected square, reset its highlight
-            prev_row, prev_col = self.selected_piece
-            self.buttons[prev_row][prev_col].config(highlightbackground='white')  # Reset previous selection
-
-        # Set the clicked square as the new selected piece and update its highlight
-        self.selected_piece = (row, col)
-        self.buttons[row][col].config(highlightbackground='blue')  # Highlight new selection
-
         print(f"Clicked: {row}, {col}, Selected: {self.selected_piece}, Move Count: {self.move_count}")  # Debug print
-        
+
         # Check if there's a piece on the clicked square and print details
         piece = self.board[row][col]
         if piece:
@@ -373,7 +364,6 @@ class GameGUI:
             return True
         return False
 
-
     def update_board(self):
         print(f"current turn: {self.current_turn + 1}")
         for row in range(8):
@@ -386,9 +376,9 @@ class GameGUI:
                     else:
                         # For a hidden piece from the opponent's perspective
                         icon_key = f"hidden_player{piece.player}"
-                    
+
                     self.buttons[row][col].config(image=self.icons[icon_key])
-                    
+
                     # For the current player's hidden pieces, set a grey background; otherwise, white
                     if piece.player == self.current_turn + 1 and not piece.is_revealed:
                         self.buttons[row][col].config(bg="grey")
@@ -396,7 +386,7 @@ class GameGUI:
                         self.buttons[row][col].config(bg="white")
                 else:  # No piece in this square, reset the button
                     self.buttons[row][col].config(image='', bg="white")
-                
+
                 # Ensure a reference to the image is kept to prevent it from being garbage collected
                 if piece:
                     self.buttons[row][col].image = self.icons.get(icon_key, '')
