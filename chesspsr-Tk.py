@@ -126,7 +126,8 @@ class GameGUI:
     def create_board(self):
         for row in range(8):
             for col in range(8):
-                btn = tk.Button(self.master, text=' ', width=8, height=4, command=lambda r=row, c=col: self.on_square_clicked(r, c))
+                btn = tk.Button(self.master, text=' ', width=8, height=4, command=lambda r=row, c=col: self.on_square_clicked(r, c),
+                                highlightthickness=2, highlightbackground='white')  # Highlight border set to 2px, default color white
                 btn.grid(row=row, column=col, sticky='nsew')
                 self.buttons[row][col] = btn
 
@@ -136,6 +137,15 @@ class GameGUI:
             self.master.grid_columnconfigure(i, weight=1)
 
     def on_square_clicked(self, row, col):
+        if self.selected_piece:
+            # If there's a previously selected square, reset its highlight
+            prev_row, prev_col = self.selected_piece
+            self.buttons[prev_row][prev_col].config(highlightbackground='white')  # Reset previous selection
+
+        # Set the clicked square as the new selected piece and update its highlight
+        self.selected_piece = (row, col)
+        self.buttons[row][col].config(highlightbackground='blue')  # Highlight new selection
+
         print(f"Clicked: {row}, {col}, Selected: {self.selected_piece}, Move Count: {self.move_count}")  # Debug print
         
         # Check if there's a piece on the clicked square and print details
