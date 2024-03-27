@@ -1,6 +1,9 @@
 import tkinter as tk
 from tkinter import Toplevel, Button
 from tkinter import messagebox
+import tkinter.simpledialog as simpledialog
+import ai
+
 from PIL import Image, ImageTk
 
 class Piece:
@@ -65,6 +68,52 @@ class PieceTypeDialog(Toplevel):
         self.result = None  # No selection was made
         self.destroy()
 
+class GameModeDialog(Toplevel):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.geometry("300x100")
+        self.title("Choose Game Mode")
+        self.result = None
+
+        Button(self, text="Player vs Player (PvP)", command=self.choose_pvp).pack(side="left", padx=10, pady=10)
+        Button(self, text="Player vs AI (PvAI)", command=self.choose_pvai).pack(side="left", padx=10, pady=10)
+
+        self.transient(parent)
+        self.grab_set()
+        self.wait_window(self)
+
+    def choose_pvp(self):
+        self.result = "PvP"
+        self.destroy()
+
+    def choose_pvai(self):
+        self.result = "PvAI"
+        self.destroy()
+
+class PlayerRoleDialog(Toplevel):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.geometry("300x150")
+        self.title("Choose Your Role")
+        self.result = None
+
+        Button(self, text="Play as Player 1", command=lambda: self.set_role(1)).pack(pady=10)
+        Button(self, text="Play as Player 2", command=lambda: self.set_role(2)).pack(pady=10)
+        Button(self, text="Random", command=self.set_random_role).pack(pady=10)
+
+        self.transient(parent)
+        self.grab_set()
+        self.wait_window(self)
+
+    def set_role(self, role):
+        self.result = role
+        self.destroy()
+
+    def set_random_role(self):
+        import random
+        self.result = random.choice([1, 2])
+        self.destroy()
+
 class GameGUI:
     def __init__(self, master):
         self.master = master
@@ -88,10 +137,37 @@ class GameGUI:
         self.move_count = 0  # Track the number of moves made in the current turn
         self.home_squares = {1: (7, 0), 2: (0, 7)}  # Assuming Player 1's home is at (7, 0) and Player 2's at (0, 7)
 
+        self.game_mode = None
+        self.choose_game_mode()
+        self.ai_agent = None
+        if self.game_mode == "PvAI":
+            self.setup_ai_game()
+
         self.create_board()
         self.initialize_game()
         self.announce_turn()
     
+    def choose_game_mode(self):
+        dialog = GameModeDialog(self.master)
+        self.game_mode = dialog.result
+        if not self.game_mode:
+        # Default to PvP if no selection is made or dialog is closed
+            self.game_mode = "PvP"
+            print("Defaulting to Player vs Player mode.")
+
+    def setup_ai_game(self):
+        role_dialog = PlayerRoleDialog(self.master)
+        player_role = role_dialog.result
+        if player_role == 1:
+            self.player_role = 1
+            self.ai_role = 2
+        else:
+            self.player_role = 2
+            self.ai_role = 1
+        self.ai_agent = ai.AIAgent(self.ai_role)
+
+        # Placeholder to initialize AI agent here
+        
     def load_icons(self):
         icon_paths = {
             'rock_player1': 'images/P1rock.png',
@@ -126,7 +202,7 @@ class GameGUI:
     def create_board(self):
         for row in range(8):
             for col in range(8):
-                btn = tk.Button(self.master, text=' ', width=8, height=4, command=lambda r=row, c=col: self.on_square_clicked(r, c),
+                btn = tk.Button(self.master, text=f'{row},{col}', width=8, height=4, command=lambda r=row, c=col: self.on_square_selected(r, c),
                                 borderwidth=3, activebackground='blue')  # Highlight border set to 2px, default color white
                 btn.grid(row=row, column=col, sticky='nsew')
                 self.buttons[row][col] = btn
@@ -136,7 +212,7 @@ class GameGUI:
             self.master.grid_rowconfigure(i, weight=1)
             self.master.grid_columnconfigure(i, weight=1)
 
-    def on_square_clicked(self, row, col):
+    def on_square_selected(self, row, col):
         print(f"Clicked: {row}, {col}, Selected: {self.selected_piece}, Move Count: {self.move_count}")  # Debug print
 
         # Check if there's a piece on the clicked square and print details
@@ -149,7 +225,7 @@ class GameGUI:
         # Home square logic
         if (row, col) == self.home_squares[self.current_turn + 1] and not self.board[row][col] and self.move_count == 0:
             self.spawn_piece(self.current_turn + 1, row, col)
-            self.switch_turn()  # Switch turn after spawning
+            self.end_turn()  # Switch turn after spawning
         elif self.selected_piece:
             # Attempt to move selected piece to the clicked square
             if self.is_valid_move(self.selected_piece, (row, col)):
@@ -157,7 +233,7 @@ class GameGUI:
                 self.move_count += 1
                 print(f"Move made to: {row}, {col}. Move Count: {self.move_count}")
                 if self.move_count == 3:  # After making three moves, switch turns
-                    self.switch_turn()
+                    self.end_turn()
                 self.selected_piece = None  # Reset selected_piece after a successful move
             else:
                 print("Invalid move. Try again.")
@@ -166,7 +242,7 @@ class GameGUI:
             # Select a piece to move if within move limit
             if self.move_count < 3 and self.is_valid_selection(row, col):
                 self.selected_piece = (row, col)
-                print(f"Piece at {row}, {col} selected. Move Count: {self.move_count}")
+                # print(f"Piece at {row}, {col} selected. Move Count: {self.move_count}")
             else:
                 print("Move limit reached or invalid selection.")
 
@@ -312,14 +388,15 @@ class GameGUI:
 
         return True  # Assuming other conditions are met
 
-    def spawn_piece(self, player, row, col):
-        piece_type = self.choose_piece_type()
+    def spawn_piece(self, player, row, col, piece_type=None):
+        if piece_type is None:  # If no piece_type is provided, ask the player to choose
+            piece_type = self.choose_piece_type()
         if piece_type:
             new_piece = Piece(piece_type, player, is_revealed=False)
             self.board[row][col] = new_piece
             # Update the board visualization as necessary
             self.update_board()
-            print(f"Spawned {piece_type} for Player {player}")
+            print(f"Spawned {piece_type} for Player {player} at {row}, {col}")
         else:
             print("Piece spawning cancelled.")
 
@@ -365,7 +442,6 @@ class GameGUI:
         return False
 
     def update_board(self):
-        print(f"current turn: {self.current_turn + 1}")
         for row in range(8):
             for col in range(8):
                 piece = self.board[row][col]
@@ -390,6 +466,72 @@ class GameGUI:
                 # Ensure a reference to the image is kept to prevent it from being garbage collected
                 if piece:
                     self.buttons[row][col].image = self.icons.get(icon_key, '')
+
+    def get_board_state(self):
+        # Create a 2D list to represent the state of the board
+        state = [[None for _ in range(8)] for _ in range(8)]
+        
+        for row in range(8):
+            for col in range(8):
+                piece = self.board[row][col]
+                if piece:
+                    # For AI, represent each piece with a dictionary including ownership and visibility
+                    # The type of the piece is only included if it's revealed
+                    piece_representation = {
+                        'player': piece.player,
+                        'is_revealed': piece.is_revealed
+                    }
+                    if piece.is_revealed:
+                        piece_representation['type'] = piece.piece_type
+                    else:
+                        # If the piece is not revealed and belongs to the opponent, don't include the type
+                        if piece.player != self.current_turn + 1:
+                            piece_representation['type'] = 'Unknown'
+                        else:
+                            # If the piece is not revealed but belongs to the AI itself, include the type
+                            piece_representation['type'] = piece.piece_type
+
+                    state[row][col] = piece_representation
+                else:
+                    # Empty squares are represented as None
+                    state[row][col] = None
+        return state
+    
+    def end_turn(self):
+        self.switch_turn()
+        # Check if it's the AI's turn now
+        if self.current_turn == self.ai_role - 1:
+            print('----------------START AI TURN----------------')
+            self.ai_turn()
+
+    def ai_turn(self):
+        # Only proceed if it's the AI's turn and there are moves left to make
+        if self.current_turn == self.ai_role - 1 and self.move_count < 4:
+            board_state = self.get_board_state()
+            decision = self.ai_agent.decide_spawn_or_move(board_state)
+            if decision[0] == 'spawn':
+                print('AI spawn')  # Debug print to show spawning action
+                piece_type = decision[1]  # Type of piece to spawn
+                # Determine AI's home square based on ai_role
+                home_square = (7, 0) if self.ai_role == 1 else (0, 7)
+                self.spawn_piece(self.ai_role, home_square[0], home_square[1], piece_type)
+                self.move_count = 3  # Assuming spawning counts as all moves for a turn
+            elif decision[0] == 'move':
+                print('AI move')  # Move a piece from one location to another
+                self.on_square_selected(decision[1][0][0], decision[1][0][1])
+                self.on_square_selected(decision[1][1][0], decision[1][1][1])
+                # If there are moves left, continue the AI's turn after a delay
+                if self.move_count < 4:
+                    self.master.after(1000, self.ai_turn)  # Note the renamed function reference here
+            else:
+                print('AI pass')  # In case 'pass' is implemented for the AI
+                self.end_turn()
+
+        # Ensure the board and game state are updated after each action
+        self.update_board()
+        if self.check_win_condition():
+            messagebox.showinfo("Game Over", f"Player {3 - self.current_turn} wins!")
+            # Additional logic to handle game over state
 
 def main():
     root = tk.Tk()
