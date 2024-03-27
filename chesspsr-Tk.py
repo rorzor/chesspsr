@@ -446,20 +446,41 @@ class GameGUI:
             for col in range(8):
                 piece = self.board[row][col]
                 if piece:  # If there's a piece in this square
-                    # Determine the base key for the icon dictionary based on piece attributes
-                    if piece.is_revealed or piece.player == self.current_turn + 1:
-                        icon_key = f"{piece.piece_type.lower()}_player{piece.player}"
+                    # Handle PvAI game differently
+                    if self.game_mode == "PvAI":
+                        if piece.player == self.ai_role:
+                            # AI pieces
+                            if piece.is_revealed:
+                                # AI piece that is revealed
+                                icon_key = f"{piece.piece_type.lower()}_player{piece.player}"
+                            else:
+                                # AI piece that is not revealed
+                                icon_key = f"hidden_player{piece.player}"
+                        else:
+                            # human piece types are always displayed
+                            icon_key = f"{piece.piece_type.lower()}_player{piece.player}"
+                            if not piece.is_revealed:
+                                self.buttons[row][col].config(bg="grey")
+                            else:
+                                self.buttons[row][col].config(bg="white")
+                    
+                    # Else handle like PVP
                     else:
-                        # For a hidden piece from the opponent's perspective
-                        icon_key = f"hidden_player{piece.player}"
+                        # Determine the base key for the icon dictionary based on piece attributes
+                        if piece.is_revealed or piece.player == self.current_turn + 1:
+                            icon_key = f"{piece.piece_type.lower()}_player{piece.player}"
+                        else:
+                            # For a hidden piece from the opponent's perspective
+                            icon_key = f"hidden_player{piece.player}"
 
+                        # For the current player's hidden pieces, set a grey background; otherwise, white
+                        if piece.player == self.current_turn + 1 and not piece.is_revealed:
+                            self.buttons[row][col].config(bg="grey")
+                        else:
+                            self.buttons[row][col].config(bg="white")
+                
                     self.buttons[row][col].config(image=self.icons[icon_key])
 
-                    # For the current player's hidden pieces, set a grey background; otherwise, white
-                    if piece.player == self.current_turn + 1 and not piece.is_revealed:
-                        self.buttons[row][col].config(bg="grey")
-                    else:
-                        self.buttons[row][col].config(bg="white")
                 else:  # No piece in this square, reset the button
                     self.buttons[row][col].config(image='', bg="white")
 
@@ -515,7 +536,8 @@ class GameGUI:
                 # Determine AI's home square based on ai_role
                 home_square = (7, 0) if self.ai_role == 1 else (0, 7)
                 self.spawn_piece(self.ai_role, home_square[0], home_square[1], piece_type)
-                self.move_count = 3  # Assuming spawning counts as all moves for a turn
+                self.end_turn() # end turn after spawn a new piece
+
             elif decision[0] == 'move':
                 print('AI move')  # Move a piece from one location to another
                 self.on_square_selected(decision[1][0][0], decision[1][0][1])
