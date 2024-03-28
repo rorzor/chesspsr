@@ -55,8 +55,7 @@ Enjoy playing Rock Paper Scissors Board Game!
 # To Do:
 
 * Change setup_ai_game function to invoke more detailed dialog with additional configuration options
-  * Add option to randomise initial piece types to expedite setup
-* Handle end game properly, offering restart or close application
+  * Add option to choose different AI agents
 * Update AI with better logic, make decisions based on opportunities and moves remaining:
   * aim to win if possible
   * aim to avoid losing next turn if possible
