@@ -2,8 +2,8 @@ import tkinter as tk
 from tkinter import Toplevel, Button
 from tkinter import messagebox
 import tkinter.simpledialog as simpledialog
+import random
 import ai
-
 from PIL import Image, ImageTk
 
 class Piece:
@@ -110,9 +110,33 @@ class PlayerRoleDialog(Toplevel):
         self.destroy()
 
     def set_random_role(self):
-        import random
         self.result = random.choice([1, 2])
         self.destroy()
+
+class GameEndDialog(Toplevel):
+    def __init__(self, parent, title="Game Over"):
+        super().__init__(parent)
+        self.geometry("300x150")
+        self.title(title)
+        self.result = None
+        
+        tk.Label(self, text="Game over! What would you like to do?").pack(pady=10)
+
+        tk.Button(self, text="Restart", command=self.restart).pack(side="left", padx=10)
+        tk.Button(self, text="Close", command=self.close).pack(side="right", padx=10)
+
+        self.transient(parent)
+        self.grab_set()
+        parent.wait_window(self)
+
+    def restart(self):
+        self.result = "restart"
+        self.destroy()
+
+    def close(self):
+        self.result = "close"
+        self.destroy()
+
 
 class GameGUI:
     def __init__(self, master):
@@ -202,7 +226,8 @@ class GameGUI:
     def create_board(self):
         for row in range(8):
             for col in range(8):
-                btn = tk.Button(self.master, text=f'{row},{col}', width=8, height=4, command=lambda r=row, c=col: self.on_square_selected(r, c),
+                # btn = tk.Button(self.master, text=f'{row},{col}', width=8, height=4, command=lambda r=row, c=col: self.on_square_selected(r, c),
+                btn = tk.Button(self.master, text='', width=8, height=4, command=lambda r=row, c=col: self.on_square_selected(r, c),
                                 borderwidth=3, activebackground='blue')  # Highlight border set to 2px, default color white
                 btn.grid(row=row, column=col, sticky='nsew')
                 self.buttons[row][col] = btn
@@ -230,7 +255,6 @@ class GameGUI:
             # Attempt to move selected piece to the clicked square
             if self.is_valid_move(self.selected_piece, (row, col)):
                 self.move_piece(self.selected_piece, (row, col))
-                self.move_count += 1
                 print(f"Move made to: {row}, {col}. Move Count: {self.move_count}")
                 if self.move_count == 3:  # After making three moves, switch turns
                     self.end_turn()
@@ -260,27 +284,28 @@ class GameGUI:
         
         # Loop through each player's positions to initialize pieces
         for player_id, positions in enumerate([player1_positions, player2_positions], start=1):
-            self.prompt_for_initial_pieces(player_id, positions)
+            self.setup_initial_pieces(player_id, positions)
             
         self.update_board()
 
-    def prompt_for_initial_pieces(self, player_id, positions):
+    def setup_initial_pieces(self, player_id, positions):
         piece_types = ["Rock", "Paper", "Scissors"]
         for square, (row, col) in positions:
             message = f"Player {player_id}, select a type for {square}"
-            dialog = PieceTypeDialog(self.master, "Piece Selection", message, piece_types)
+            # uncomment in the future if choice of starting pieces is desired
+            # dialog = PieceTypeDialog(self.master, "Piece Selection", message, piece_types)
+            # choice = dialog.result  # Access the result directly after the dialog has been handled
+            selection = random.choice(piece_types)            
             
-            choice = dialog.result  # Access the result directly after the dialog has been handled
-            
-            if choice:  # If a choice was made
-                piece = Piece(choice, player_id, is_revealed=False)  # Assuming pieces are initially revealed
+            if selection:  # If a choice was made
+                piece = Piece(selection, player_id, is_revealed=False)  # pieces are initially not revealed
                 self.board[row][col] = piece
-                # Use icons instead of text for pieces
-                icon_key = f"{choice.lower()}_player{player_id}"
+                # Set up icon based on chosen type
+                icon_key = f"{selection.lower()}_player{player_id}"
                 self.buttons[row][col].config(image=self.icons[icon_key], bg="white")
                 # Store a reference to prevent garbage collection
                 self.buttons[row][col].image = self.icons[icon_key]
-                piece_types.remove(choice)
+                piece_types.remove(selection)
 
     def move_piece(self, from_pos, to_pos):
         from_row, from_col = from_pos
@@ -318,13 +343,15 @@ class GameGUI:
                 self.board[to_row][to_col] = from_piece
                 self.board[from_row][from_col] = None
                 print(f"Moved {from_piece.piece_type} from {from_pos} to {to_pos}")
-
-            # Check for win condition after the move or battle
-            if self.check_win_condition():
-                tk.messagebox.showinfo("Game Over", f"Player {self.current_turn + 1} wins!")
+            # Increment the move count
+            self.move_count += 1
 
             # Update the board to reflect the new state
             self.update_board()
+
+            # Check for win condition after the move or battle
+            self.check_win_condition()
+
         else:
             print("Invalid move.")
 
@@ -431,13 +458,18 @@ class GameGUI:
         return True
 
     def check_win_condition(self):
-        # Check Player 1's victory condition: Player 1 piece is at Player 2's home square
+        winner = None
         if self.board[0][7] is not None and self.board[0][7].player == 1:
-            print("Player 1 wins!")
-            return True
-        # Check Player 2's victory condition: Player 2 piece is at Player 1's home square
-        if self.board[7][0] is not None and self.board[7][0].player == 2:
-            print("Player 2 wins!")
+            winner = 1
+        elif self.board[7][0] is not None and self.board[7][0].player == 2:
+            winner = 2
+
+        if winner:
+            dialog = GameEndDialog(self.master, winner)
+            if dialog.result == "restart":
+                self.reset_game()
+            elif dialog.result == "close":
+                self.master.destroy()  # Or self.master.quit()
             return True
         return False
 
@@ -554,6 +586,39 @@ class GameGUI:
         if self.check_win_condition():
             messagebox.showinfo("Game Over", f"Player {3 - self.current_turn} wins!")
             # Additional logic to handle game over state
+
+    def reset_game(self):
+        # Clear the game board
+        self.board = [[None for _ in range(8)] for _ in range(8)]
+
+        # Reset game state variables
+        self.current_turn = 0
+        self.move_count = 0
+        self.selected_piece = None
+
+        # Reset the game mode to None to re-trigger the mode selection
+        self.game_mode = None
+        self.ai_agent = None  # Clear the AI agent, if any
+
+        # Remove existing buttons for a fresh start
+        for row in self.buttons:
+            for btn in row:
+                btn.destroy()
+
+        self.buttons = [[None for _ in range(8)] for _ in range(8)]  # Reinitialize buttons list
+
+        # Reinitialize the game setup
+        self.choose_game_mode()
+        self.create_board()
+
+        # If AI mode was selected, setup AI game again
+        if self.game_mode == "PvAI":
+            self.setup_ai_game()
+
+        # Re-draw the board and set initial pieces as needed
+        self.initialize_game()
+        self.announce_turn()
+
 
 def main():
     root = tk.Tk()
