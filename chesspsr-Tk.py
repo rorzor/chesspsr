@@ -221,13 +221,13 @@ class GameGUI:
     def update_turn_status(self):
         # Update the status label with the current player's turn
         player = self.current_turn + 1
-        self.status_label.config(text=f"Player {player}'s turn")
+        self.status_label.config(text=f"Player {player}'s turn. Move: {self.move_count} ")
 
     def create_board(self):
         for row in range(8):
             for col in range(8):
-                # btn = tk.Button(self.master, text=f'{row},{col}', width=8, height=4, command=lambda r=row, c=col: self.on_square_selected(r, c),
-                btn = tk.Button(self.master, text='', width=8, height=4, command=lambda r=row, c=col: self.on_square_selected(r, c),
+                btn = tk.Button(self.master, text=f'{row},{col}', width=8, height=4, command=lambda r=row, c=col: self.on_square_selected(r, c),
+                # btn = tk.Button(self.master, text='', width=8, height=4, command=lambda r=row, c=col: self.on_square_selected(r, c),
                                 borderwidth=3, activebackground='blue')  # Highlight border set to 2px, default color white
                 btn.grid(row=row, column=col, sticky='nsew')
                 self.buttons[row][col] = btn
@@ -238,14 +238,15 @@ class GameGUI:
             self.master.grid_columnconfigure(i, weight=1)
 
     def on_square_selected(self, row, col):
-        print(f"Clicked: {row}, {col}, Selected: {self.selected_piece}, Move Count: {self.move_count}")  # Debug print
+        # Debug printout for click events
+        #print(f"Clicked: {row}, {col}, Selected: {self.selected_piece}, Move Count: {self.move_count}")  # Debug print
 
-        # Check if there's a piece on the clicked square and print details
-        piece = self.board[row][col]
-        if piece:
-            print(f"Piece present: Yes, Type: {piece.piece_type}, Owner: Player {piece.player}")
-        else:
-            print("Piece present: No")
+        # Debug to check if there's a piece on the clicked square and print details
+        # piece = self.board[row][col]
+        # if piece:
+        #     print(f"Piece present: Yes, Type: {piece.piece_type}, Owner: Player {piece.player}")
+        # else:
+        #     print("Piece present: No")
         
         # Home square logic
         if (row, col) == self.home_squares[self.current_turn + 1] and not self.board[row][col] and self.move_count == 0:
@@ -255,7 +256,8 @@ class GameGUI:
             # Attempt to move selected piece to the clicked square
             if self.is_valid_move(self.selected_piece, (row, col)):
                 self.move_piece(self.selected_piece, (row, col))
-                print(f"Move made to: {row}, {col}. Move Count: {self.move_count}")
+                # debug print for successful moves
+                # print(f"Move made to: {row}, {col}. Move Count: {self.move_count}")
                 if self.move_count == 3:  # After making three moves, switch turns
                     self.end_turn()
                 self.selected_piece = None  # Reset selected_piece after a successful move
@@ -342,7 +344,8 @@ class GameGUI:
                 # Move the piece to the new position if not initiating a battle
                 self.board[to_row][to_col] = from_piece
                 self.board[from_row][from_col] = None
-                print(f"Moved {from_piece.piece_type} from {from_pos} to {to_pos}")
+                # debug printout for movement actions
+                #print(f"Moved {from_piece.piece_type} from {from_pos} to {to_pos}")
             # Increment the move count
             self.move_count += 1
 
@@ -561,7 +564,7 @@ class GameGUI:
         # Only proceed if it's the AI's turn and there are moves left to make
         if self.current_turn == self.ai_role - 1 and self.move_count < 4:
             board_state = self.get_board_state()
-            decision = self.ai_agent.decide_spawn_or_move(board_state)
+            decision = self.ai_agent.decision(board_state, self.move_count)
             if decision[0] == 'spawn':
                 print('AI spawn')  # Debug print to show spawning action
                 piece_type = decision[1]  # Type of piece to spawn
@@ -576,7 +579,7 @@ class GameGUI:
                 self.on_square_selected(decision[1][1][0], decision[1][1][1])
                 # If there are moves left, continue the AI's turn after a delay
                 if self.move_count < 4:
-                    self.master.after(1000, self.ai_turn)  # Note the renamed function reference here
+                    self.master.after(500, self.ai_turn)  # Note the renamed function reference here
             else:
                 print('AI pass')  # In case 'pass' is implemented for the AI
                 self.end_turn()
