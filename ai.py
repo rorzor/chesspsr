@@ -182,7 +182,7 @@ class AIAgent:
         for ai_piece in self.get_ai_pieces_with_positions(board_state):
             piece, row, col = ai_piece
             # If the threat is on the path and the AI piece can win, choose to attack
-            if (row, col) in path_to_block and 'type' in piece and piece['type'] != 'Unknown' and not self.will_lose(piece['type'], threat['type']):
+            if (row, col) in path_to_block and 'type' in piece and piece['type'] != 'Unknown' and not self.will_lose(piece['type'], threat[0]['type']):
                 print('I think I can stop the attacker!')
                 return ((row, col), (threat[1],threat[2]))  # Move to attack the threat
 
