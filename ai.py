@@ -78,7 +78,7 @@ class AIAgent:
         ai_pieces = self.get_ai_pieces_with_positions(board_state)
 
         for piece, row, col in ai_pieces:
-            path = self.find_path_to_home(piece, row, col, board_state, opponent_home_square, 3 - move_count)
+            path = self.find_path_to_square(piece, row, col, board_state, opponent_home_square, 3 - move_count)
             if path:
                 # If a path is found, return the first move of this path
                 return path[0]  # Assuming path[0] is in format ((from_row, from_col), (to_row, to_col))
@@ -86,7 +86,7 @@ class AIAgent:
         # If no winning path is found
         return None
 
-    def find_path_to_home(self, piece, start_row, start_col, board_state, home_square, moves_left, path=[]):
+    def find_path_to_square(self, piece, start_row, start_col, board_state, home_square, moves_left, path=[]):
         # Base case: reached the home square or no moves left
         if (start_row, start_col) == home_square:
             return path
@@ -97,7 +97,7 @@ class AIAgent:
         for move in potential_moves:
             _, (next_row, next_col) = move
             new_path = path + [move]
-            result = self.find_path_to_home(piece, next_row, next_col, board_state, home_square, moves_left - 1, new_path)
+            result = self.find_path_to_square(piece, next_row, next_col, board_state, home_square, moves_left - 1, new_path)
             if result:
                 return result
 
@@ -147,7 +147,7 @@ class AIAgent:
         potential_threats = []
 
         for piece, row, col in opponent_pieces:
-            if self.find_path_to_home(piece, row, col, board_state, ai_home_square, 3):  # Opponent gets 3 moves next turn
+            if self.find_path_to_square(piece, row, col, board_state, ai_home_square, 3):  # Opponent gets 3 moves next turn
                 potential_threats.append((piece, row, col))
 
         # If there's a direct threat, determine the best course of action
@@ -155,7 +155,9 @@ class AIAgent:
             print('Uh oh - trouble')
             for threat in potential_threats:
                 # Check if spawning a new piece can block the threat
-                if not self.is_home_square_occupied(board_state) and len(self.get_ai_pieces_with_positions(board_state)) < 3:
+                ai_piece_count = len(self.get_ai_pieces_with_positions(board_state))
+                if not self.is_home_square_occupied(board_state) and ai_piece_count < 3:
+                    print(f'I only have {ai_piece_count} pieces, I can spawn a new defender!')
                     piece_types = ['Paper', 'Scissors', 'Rock']  # Assuming a simple counter system
                     for type in piece_types:
                         if not self.will_lose(type, threat[0]['type']):  # Check if spawning this piece will block the opponent
@@ -170,17 +172,19 @@ class AIAgent:
         return None
 
     def find_block_move(self, board_state, threat, ai_home_square):
-        print('trying to understand path')
+        print(f'trying to understand path that threat will take')
         # Step 1: Determine the path of the threat to the AI's home square
-        path_to_block = self.calculate_path_to_block(threat, ai_home_square, board_state)
-        print(path_to_block)
+        moves_to_block = self.find_path_to_square(threat[0], threat[1], threat[2], board_state, ai_home_square, 3)
+        path_to_block = [ to_pos for _, to_pos in moves_to_block]
+        #path_to_block = self.calculate_path_to_block(threat, ai_home_square, board_state)
+        print(f'Threat will take this path: {path_to_block}')
         # Step 2: Attempt to Attack the Threat
         for ai_piece in self.get_ai_pieces_with_positions(board_state):
             piece, row, col = ai_piece
             # If the threat is on the path and the AI piece can win, choose to attack
             if (row, col) in path_to_block and 'type' in piece and piece['type'] != 'Unknown' and not self.will_lose(piece['type'], threat['type']):
                 print('I think I can stop the attacker!')
-                return 'move', ((row, col), threat['position'])  # Move to attack the threat
+                return ((row, col), (threat[1],threat[2]))  # Move to attack the threat
 
         # Step 3 & 4: Block the Path
         for ai_piece in self.get_ai_pieces_with_positions(board_state):
@@ -190,9 +194,9 @@ class AIAgent:
                 _, (to_row, to_col) = move
                 if (to_row, to_col) in path_to_block:
                     # Move to block the path if it's an AI piece not revealed or if the threat cannot defeat it
-                    if piece['type'] == 'Unknown' or not self.will_lose(piece['type'], threat.get('type', 'Unknown')):
-                        print('I cant let you do that, Dave')
-                        return 'move', ((row, col), (to_row, to_col))
+                    if not piece['is_revealed'] or not self.will_lose(piece['type'], threat[0]['type']):
+                        print(f'I cant let you do that, Dave! moving from {row, col} to {to_row, to_col}')
+                        return ((row, col), (to_row, to_col))
 
         # If no block move is found, return None or some default action
         return None
@@ -216,8 +220,6 @@ class AIAgent:
                 path_to_home.append((threat_row, col))
 
         return path_to_home
-
-
 
     def get_opponent_pieces_with_positions(self, board_state):
         opponent_pieces = []
