@@ -3,6 +3,8 @@ Chess paper scissors rock strategy game
 
 This Python script implements a graphical version of the Rock Paper Scissors board game using Tkinter. It's a two-player game where each player tries to capture the other's pieces by moving their own pieces across an 8x8 grid. The game incorporates the classic rock-paper-scissors mechanics for battles between pieces.
 
+The end objective is to build this into an environment where an AI agent can be trained with RL to play the game and develop effective strategies. It is possible that the rules will need to be chanegd to accomodate a dynamic and rich playing experience, and the use of AI is ultimately intended to refine the ruleset.
+
 # Features
 Graphical User Interface: Utilizes Tkinter for a user-friendly graphical interface.
 Piece Movement: Players can move their pieces around the board with the goal of capturing the opponent's pieces or reaching the opponent's home square.
@@ -38,7 +40,7 @@ Scissors defeat Paper.
 Paper defeats Rock.
 Win the Game: The first player to move a piece to the opponent's home square wins the game.
 Customizing the Game
-Changing Icons
+Changing Icons:
 You can customize the icons used for each piece by replacing the image files in the images directory. Ensure the new images are named accordingly (e.g., P1rock.png, P2scissors.png).
 
 # Adjusting Board Size
@@ -57,7 +59,8 @@ Enjoy playing Rock Paper Scissors Board Game!
 * Change setup_ai_game function to invoke more detailed dialog with additional configuration options
   * Add option to choose different AI agents
 * Update AI with better logic, make decisions based on opportunities and moves remaining:
-  * aim to win if possible
   * aim to avoid losing next turn if possible
+    * DONE will move a piece to a defensive square if possible
+    * MUST check that a move wont open a new pathway for the threat to attack. This should enable other pieces to occupy other squares that are in the attackers pathway
   * aim to capture pieces if possible this turn
   * else carry out existing logic to move piece towards enemy home
