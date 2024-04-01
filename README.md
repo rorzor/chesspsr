@@ -54,6 +54,11 @@ This project is open-source and available under the MIT License.
 
 Enjoy playing Rock Paper Scissors Board Game!
 
+# new mechanics to consider:
+
+## Respec
+if the current mechanics end in perpetual stalemate, consider a 'respec' action where a player can make a revealed piece they own hidden again, and optionally change the type 
+
 # To Do:
 
 * Change setup_ai_game function to invoke more detailed dialog with additional configuration options
